@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retirement Planner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+/* ===== Theme tokens (edit colors, fonts and spacing here) ===== */
+:root {
+  --font-anthropic-sans: system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", Roboto, sans-serif;
+  --font-anthropic-serif: Georgia, "Times New Roman", "Noto Serif Thai", serif;
+  --color-fg: #1f1e1d; --color-fg-muted: #6b6a68; --color-bg: #ffffff; --color-panel: #faf9f7;
+  --color-border-line: #e6e3de; --color-ok: #2f7d4f; --color-warn: #a86b12; --color-bad: #c0392b;
+  --cds-font-size-caption: 12px; --cds-font-size-body: 14px; --cds-font-size-heading: 16px; --cds-font-size-title: 28px;
+  --cds-font-weight-medium: 600;
+  --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 12px; --cds-gap-lg: 20px; --cds-gap-xl: 32px;
+  --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 16px; --cds-pad-xl: 24px;
+  --cds-radius: 8px; --cds-dur-slow: 300ms;
+  --cds-chart-grid: #eceae6; --cds-chart-axis: #b9b5ae; --cds-chart-reference: #8f8b84; --cds-chart-status-critical: #c0392b;
+  --cds-surface-popover: #ffffff; --cds-border: #e0ddd7; --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.12); --cds-text-secondary: #6b6a68;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-fg: #ecebe8; --color-fg-muted: #a3a19c; --color-bg: #1c1b1a; --color-panel: #262523;
+    --color-border-line: #3a3936; --color-ok: #5cbf86; --color-warn: #e0a243; --color-bad: #ef6b5b;
+    --cds-chart-grid: #33322f; --cds-chart-axis: #5a5853; --cds-chart-reference: #8a8780; --cds-chart-status-critical: #ef6b5b;
+    --cds-surface-popover: #2c2b29; --cds-border: #45433f; --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.5); --cds-text-secondary: #a3a19c;
+  }
+}
+html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); }
+#dash-root { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
+@media (min-width: 720px) { #dash-root { padding: 32px 32px 64px; } }
+.dash-skeleton { color: transparent !important; background: var(--color-border-line); border-radius: var(--cds-radius); opacity: .5; }
+
+/* ===== Page styles ===== */
+
+.rp { font-family: var(--font-anthropic-sans); color: var(--color-fg); }
+.rp-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0 0 var(--cds-gap-xs); }
+.rp-take { color: var(--color-fg-muted); margin: 0; font-size: var(--cds-font-size-body); max-width: 62rem; line-height: 1.5; }
+.rp-take b { font-weight: 500; color: var(--color-fg); }
+.rp-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--cds-gap-md); margin: var(--cds-gap-lg) 0; }
+.rp-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+.rp-lab { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.rp-big { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-weight: 400; font-variant-numeric: tabular-nums; margin: var(--cds-gap-xs) 0; line-height: 1.15; }
+.rp-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.rp-big.is-bad { color: var(--color-bad); }
+.rp-big.is-ok { color: var(--color-ok); }
+.rp-layout { display: grid; grid-template-columns: minmax(0, 23rem) minmax(0, 1fr); gap: var(--cds-gap-lg); align-items: start; }
+@media (max-width: 56rem) { .rp-layout { grid-template-columns: minmax(0, 1fr); } }
+.rp-main { display: grid; gap: var(--cds-gap-lg); min-width: 0; }
+.rp-card h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
+.rp-note { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: var(--cds-gap-xs) 0 var(--cds-gap-md); line-height: 1.45; }
+.rp-group { border: 0; padding: 0; margin: 0 0 var(--cds-gap-lg); min-width: 0; }
+.rp-group legend { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); padding: 0; margin-bottom: var(--cds-gap-sm); }
+.rp-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px var(--cds-gap-sm); margin-bottom: var(--cds-gap-sm); }
+.rp-field label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.rp-num { display: inline-flex; align-items: center; gap: 4px; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.rp-num input { width: 7.5rem; text-align: right; font: inherit; font-size: var(--cds-font-size-body); color: var(--color-fg); background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: 2px 6px; font-variant-numeric: tabular-nums; }
+.rp-num.is-short input { width: 4.5rem; }
+.rp-field input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; }
+.rp-extra-head { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; justify-content: space-between; margin: var(--cds-gap-md) 0 var(--cds-gap-sm); }
+.rp-extra-head strong { font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); }
+.rp-expense-list { display: grid; gap: var(--cds-gap-sm); }
+.rp-expense-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--cds-gap-xs); align-items: center; min-width: 0; }
+.rp-expense-row input[type=text] { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-size: var(--cds-font-size-caption); color: var(--color-fg); background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: 5px 6px; }
+.rp-expense-row .rp-num input { width: 5.5rem; }
+.rp-expense-remove { padding: 4px 7px; }
+.rp-check { display: flex; gap: var(--cds-gap-sm); align-items: flex-start; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: var(--cds-gap-xs) 0 var(--cds-gap-sm); line-height: 1.4; }
+.rp-check input { margin-top: 2px; }
+.rp-bar { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; justify-content: space-between; margin-bottom: var(--cds-gap-md); }
+.rp-btn { font: inherit; font-size: var(--cds-font-size-caption); color: var(--color-fg); background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: 4px 10px; cursor: pointer; }
+.rp-seg { display: inline-flex; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); overflow: hidden; }
+.rp-seg button { font: inherit; font-size: var(--cds-font-size-caption); border: 0; background: var(--color-bg); color: var(--color-fg-muted); padding: 4px 10px; cursor: pointer; }
+.rp-seg button[aria-pressed=true] { background: var(--color-panel); color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.rp-chart { position: relative; min-height: 290px; }
+.rp-chart svg { display: block; overflow: visible; }
+.rp-tick { font-size: var(--cds-font-size-caption); fill: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.rp-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-bottom: var(--cds-gap-sm); }
+.rp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.rp-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.rp-legend i.is-line { height: 2px; border-radius: 1px; width: 14px; }
+.rp-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; white-space: nowrap; z-index: 2; }
+.rp-tip .t { color: var(--cds-text-secondary); margin-bottom: 2px; }
+.rp-tip .r { display: flex; align-items: center; gap: 6px; }
+.rp-tip .r i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.rp-tip .r b { font-weight: var(--cds-font-weight-medium); margin-left: auto; padding-left: var(--cds-gap-md); }
+.rp-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--cds-gap-md); }
+.rp-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); }
+.rp-table th { text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); border-bottom: 1px solid var(--color-border-line); padding: 6px 8px 6px 0; }
+.rp-table td { border-bottom: 1px solid var(--color-border-line); padding: 6px 8px 6px 0; vertical-align: top; font-variant-numeric: tabular-nums; }
+.rp-method { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.55; margin: 0; padding-left: 1.1rem; }
+.rp-method li { margin-bottom: 4px; }
+.rp-fail { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: inherit; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.rp-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+[data-dash-source-state=empty] { color: transparent; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+</style>
+</head>
+<body>
+<div id="dash-root">
+<div class="rp">
+  <header class="rp-head" id="summary">
+    <h1>Retirement planner</h1>
+    <p class="rp-take dash-skeleton">—</p>
+  </header>
+
+  <section class="rp-tiles" id="headline" aria-label="Headline figures">
+    <div class="rp-card rp-tile" id="tile-lasts"><div class="rp-lab">Money lasts until</div><div class="rp-big">—</div><div class="rp-sub">&nbsp;</div></div>
+    <div class="rp-card rp-tile" id="tile-pot"><div class="rp-lab">Savings at retirement</div><div class="rp-big">—</div><div class="rp-sub">&nbsp;</div></div>
+    <div class="rp-card rp-tile" id="tile-need"><div class="rp-lab">Needed at retirement</div><div class="rp-big">—</div><div class="rp-sub">&nbsp;</div></div>
+    <div class="rp-card rp-tile" id="tile-spend"><div class="rp-lab">Planned spending</div><div class="rp-big">—</div><div class="rp-sub">&nbsp;</div></div>
+    <div class="rp-card rp-tile" id="tile-sso"><div class="rp-lab">Social Security pension</div><div class="rp-big">—</div><div class="rp-sub">&nbsp;</div></div>
+    <div class="rp-card rp-tile" id="tile-gap"><div class="rp-lab">To close the gap</div><div class="rp-big">—</div><div class="rp-sub">&nbsp;</div></div>
+  </section>
+
+  <div class="rp-layout">
+    <aside class="rp-card" id="inputs">
+      <div class="rp-bar">
+        <h2>Your plan</h2>
+        <button type="button" class="rp-btn rp-reset">Reset</button>
+      </div>
+      <div class="rp-inputs" data-source="thai_rules"></div>
+    </aside>
+
+    <div class="rp-main">
+      <section class="rp-card" id="balance">
+        <div class="rp-bar">
+          <h2>Savings by age</h2>
+          <div class="rp-seg" role="group" aria-label="Money shown in">
+            <button type="button" data-real="1">Today's baht</button>
+            <button type="button" data-real="0">Future baht</button>
+          </div>
+        </div>
+        <p class="rp-note">Provident fund and other investments grow until you retire, then combine into one pot that pays your spending, less your Social Security pension.</p>
+        <div class="rp-legend rp-leg-bal"></div>
+        <div class="rp-chart rp-chart-bal dash-skeleton" data-source="thai_rules sso_ceiling"></div>
+      </section>
+
+      <section class="rp-card" id="spending">
+        <h2>Retirement spending by year</h2>
+        <p class="rp-note">What you spend each year from retirement, by bucket, with the Social Security pension that offsets it. Travel follows the taper you choose.</p>
+        <div class="rp-legend rp-leg-sp"></div>
+        <div class="rp-chart rp-chart-sp dash-skeleton" data-source="thai_rules sso_ceiling"></div>
+      </section>
+    </div>
+  </div>
+
+  <section id="rules" style="margin-top: var(--cds-gap-lg)">
+    <div class="rp-grid2">
+      <div class="rp-card">
+        <h2>Social Security wage ceiling</h2>
+        <p class="rp-note">The pension uses your wage only up to this ceiling, so a high salary doesn't raise it past the cap.</p>
+        <table class="rp-table" id="ceiling-table" data-source="sso_ceiling" data-row-key="phase">
+          <thead><tr><th data-field="phase">Phase</th><th data-field="period">Years</th><th data-field="ceiling_shown">Wage ceiling / month</th><th data-field="contribution_shown">Max contribution / month</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="rp-card">
+        <h2>Pension and provident fund rules used</h2>
+        <p class="rp-note">The rules behind the pension estimate and the PVD contribution limits.</p>
+        <table class="rp-table" id="rules-table" data-source="thai_rules" data-row-key="rule_id">
+          <thead><tr><th data-field="label">Rule</th><th data-field="shown">Value</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="rp-card" style="margin-top: var(--cds-gap-md)" id="method">
+      <h2>How this is calculated</h2>
+      <ul class="rp-method" style="margin-top: var(--cds-gap-sm)">
+        <li>Each year until you retire, your salary grows by your salary growth rate. You and your employer add your PVD percentages of it to the provident fund, which earns the PVD return. Your monthly investing grows with your salary and earns its own return.</li>
+        <li>At retirement both pots combine and earn the after-retirement return. Each year, essentials, general spending, learning, and planned trips are taken out (in today's baht, raised by inflation) less any Social Security pension.</li>
+        <li>The Social Security pension needs 180 months of contributions. It pays 20% of your average wage over the last 60 months, with each month capped at that year's ceiling, plus 1.5% for each extra 12 months. It starts at 55, or when you retire if that's later, and is a fixed baht amount. Contributions are assumed to stop when you retire. Below 180 months you get a lump sum instead, which isn't modeled here.</li>
+        <li>"Needed at retirement" is the pot that would last exactly until your plan-until age. "To close the gap" finds the extra monthly investing, or the spending level, that makes the money last.</li>
+        <li>Tax, PVD vesting rules and fees aren't modeled. Returns are steady averages, not market ups and downs. This is a planning tool, not financial advice.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+</div>
+<script>
+/* =====================================================================
+   Data and settings — edit these in VS Code.
+   RP_DATA     : Thai rules (Social Security ceiling, pension and PVD rules)
+   RP_DEFAULTS : your plan's starting numbers (rates are fractions: 0.05 = 5%)
+   ===================================================================== */
+window.RP_DATA = {
+  thai_rules: [
+  {
+    "rule_id": "sso_pension_age",
+    "label": "SSO old-age pension starts at",
+    "value": 55,
+    "shown": "Age 55",
+    "applies_to": "Social Security (Section 33)"
+  },
+  {
+    "rule_id": "sso_min_months",
+    "label": "Contributions needed for a monthly pension",
+    "value": 180,
+    "shown": "180 months (15 years)",
+    "applies_to": "Social Security (Section 33)"
+  },
+  {
+    "rule_id": "sso_base_rate",
+    "label": "Pension at 15 years of contributions",
+    "value": 0.2,
+    "shown": "20% of average wage",
+    "applies_to": "Social Security (Section 33)"
+  },
+  {
+    "rule_id": "sso_extra_rate",
+    "label": "Each extra 12 months of contributions adds",
+    "value": 0.015,
+    "shown": "+1.5% of average wage",
+    "applies_to": "Social Security (Section 33)"
+  },
+  {
+    "rule_id": "sso_avg_months",
+    "label": "Average wage is taken over",
+    "value": 60,
+    "shown": "Last 60 months, each capped at that year's ceiling",
+    "applies_to": "Social Security (Section 33)"
+  },
+  {
+    "rule_id": "pvd_min_rate",
+    "label": "PVD contribution, minimum",
+    "value": 0.02,
+    "shown": "2% of salary",
+    "applies_to": "Provident fund (you and employer)"
+  },
+  {
+    "rule_id": "pvd_max_rate",
+    "label": "PVD contribution, maximum",
+    "value": 0.15,
+    "shown": "15% of salary",
+    "applies_to": "Provident fund (you and employer)"
+  }
+],
+  sso_ceiling: [
+  {
+    "phase": "Before 2026",
+    "period": "Up to 2025",
+    "from_year": 1990,
+    "to_year": 2025,
+    "wage_ceiling": 15000,
+    "max_contribution": 750,
+    "ceiling_shown": "฿15,000",
+    "contribution_shown": "฿750"
+  },
+  {
+    "phase": "Phase 1",
+    "period": "2026–2028",
+    "from_year": 2026,
+    "to_year": 2028,
+    "wage_ceiling": 17500,
+    "max_contribution": 875,
+    "ceiling_shown": "฿17,500",
+    "contribution_shown": "฿875"
+  },
+  {
+    "phase": "Phase 2",
+    "period": "2029–2031",
+    "from_year": 2029,
+    "to_year": 2031,
+    "wage_ceiling": 20000,
+    "max_contribution": 1000,
+    "ceiling_shown": "฿20,000",
+    "contribution_shown": "฿1,000"
+  },
+  {
+    "phase": "Phase 3",
+    "period": "2032 onward",
+    "from_year": 2032,
+    "to_year": null,
+    "wage_ceiling": 23000,
+    "max_contribution": 1150,
+    "ceiling_shown": "฿23,000",
+    "contribution_shown": "฿1,150"
+  }
+]
+};
+
+window.RP_DEFAULTS = {
+  "age": 30,
+  "retireAge": 55,
+  "planTo": 90,
+  "salary": 50000,
+  "salaryGrowth": 0.03,
+  "pvdBalance": 300000,
+  "pvdEmp": 0.05,
+  "pvdEr": 0.05,
+  "pvdReturn": 0.04,
+  "ssoYears": 7,
+  "otherBalance": 200000,
+  "otherMonthly": 5000,
+  "otherReturn": 0.06,
+  "essentials": 25000,
+  "general": 15000,
+  "learning": 5000,
+  "travelTrips": 2,
+  "travel": 30000,
+  "extraExpenses": [],
+  "taper": true,
+  "inflation": 0.025,
+  "postReturn": 0.04,
+  "real": true
+};
+
+/* Small helper the page uses for settings, data and colors.
+   Slider changes are remembered in this browser (localStorage); Reset restores RP_DEFAULTS. */
+window.dash = (() => {
+  const KEY = 'retirement-planner-params-v2';
+  let params = { ...RP_DEFAULTS };
+  try { Object.assign(params, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+  const subs = [];
+  const run = () => subs.forEach((fn) => fn());
+  const dark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+  let t;
+  window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(run, 120); });
+  return {
+    colors: dark
+      ? ['#6ea8ff', '#f2a25c', '#5fcf8a', '#b493ff', '#f07fa8', '#4fc7d2', '#e0c85a', '#9aa5b1']
+      : ['#2f6fd0', '#d9822b', '#2f9a5a', '#7d55c7', '#c94f7c', '#1b8f9a', '#b39a22', '#6b7785'],
+    params: () => ({ ...params }),
+    setParams(o) { Object.assign(params, o); try { localStorage.setItem(KEY, JSON.stringify(params)); } catch (e) {} run(); },
+    resetParams() { params = { ...RP_DEFAULTS }; try { localStorage.removeItem(KEY); } catch (e) {} run(); },
+    data: (id) => (RP_DATA[id] ? { status: 'ok', data: RP_DATA[id] } : { status: 'missing', data: [] }),
+    onData(fn) { subs.push(fn); fn(); },
+  };
+})();
+</script>
+<script>
+(() => {
+  const root = document.querySelector('.rp');
+  const cfmt = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+  const fullF = d3.format(',');
+  const fmtFull = (v) => (v < 0 ? '−' : '') + '฿' + fullF(Math.round(Math.abs(v)));
+  const fmtC = (v) => (v < 0 ? '−' : '') + '฿' + cfmt.format(Math.abs(v));
+  const pctF = d3.format('.0%');
+  const pct1 = d3.format('.1~%');
+
+  const SPEC = [
+    { g: 'You', k: 'age', l: 'Current age', min: 20, max: 60, step: 1, u: 'yrs' },
+    { g: 'You', k: 'retireAge', l: 'Retire at age', min: 40, max: 70, step: 1, u: 'yrs' },
+    { g: 'You', k: 'planTo', l: 'Plan until age', min: 70, max: 105, step: 1, u: 'yrs' },
+    { g: 'Salary and provident fund', k: 'salary', l: 'Monthly salary', min: 10000, max: 500000, step: 1000, u: '฿' },
+    { g: 'Salary and provident fund', k: 'salaryGrowth', l: 'Salary growth per year', min: 0, max: 0.1, step: 0.005, u: '%' },
+    { g: 'Salary and provident fund', k: 'pvdBalance', l: 'PVD balance today', min: 0, max: 20000000, step: 10000, u: '฿' },
+    { g: 'Salary and provident fund', k: 'pvdEmp', l: 'Your PVD contribution', min: 0, max: 0.3, step: 0.01, u: '%', rule: true },
+    { g: 'Salary and provident fund', k: 'pvdEr', l: 'Employer PVD contribution', min: 0, max: 0.3, step: 0.01, u: '%', rule: true },
+    { g: 'Salary and provident fund', k: 'pvdReturn', l: 'PVD return per year', min: 0, max: 0.1, step: 0.005, u: '%' },
+    { g: 'Social Security', k: 'ssoYears', l: 'Years paid in so far', min: 0, max: 40, step: 1, u: 'yrs' },
+    { g: 'Other savings and investments', k: 'otherBalance', l: 'Balance today (RMF, ThaiESG, stocks, deposits…)', min: 0, max: 50000000, step: 10000, u: '฿' },
+    { g: 'Other savings and investments', k: 'otherMonthly', l: 'Investing per month', min: 0, max: 300000, step: 500, u: '฿' },
+    { g: 'Other savings and investments', k: 'otherReturn', l: 'Return per year', min: 0, max: 0.12, step: 0.005, u: '%' },
+    { g: 'Retirement spending, in today’s baht', k: 'essentials', l: 'Essentials per month (home, food, health)', min: 0, max: 300000, step: 1000, u: '฿' },
+    { g: 'Retirement spending, in today’s baht', k: 'general', l: 'General spending per month', min: 0, max: 300000, step: 1000, u: '฿' },
+    { g: 'Retirement spending, in today’s baht', k: 'learning', l: 'Learning per month', min: 0, max: 300000, step: 1000, u: '฿' },
+    { g: 'Retirement spending, in today’s baht', k: 'travelTrips', l: 'Trips per year', min: 0, max: 12, step: 1, u: 'trips' },
+    { g: 'Retirement spending, in today’s baht', k: 'travel', l: 'Cost per trip', min: 0, max: 1000000, step: 5000, u: '฿' },
+    { g: 'Assumptions', k: 'inflation', l: 'Inflation per year', min: 0, max: 0.06, step: 0.0025, u: '%' },
+    { g: 'Assumptions', k: 'postReturn', l: 'Return after retiring', min: 0, max: 0.1, step: 0.0025, u: '%' },
+  ];
+
+  const panel = root.querySelector('.rp-inputs');
+  const ctrls = {};
+  let group = null, box = null, spendingBox = null;
+  SPEC.forEach((s) => {
+    if (s.g !== group) {
+      group = s.g;
+      box = document.createElement('fieldset');
+      box.className = 'rp-group';
+      const lg = document.createElement('legend');
+      lg.textContent = s.g;
+      box.append(lg);
+      panel.append(box);
+      if (s.g === 'Retirement spending, in today’s baht') spendingBox = box;
+    }
+    const row = document.createElement('div');
+    row.className = 'rp-field';
+    const id = 'rp-in-' + s.k;
+    const lab = document.createElement('label');
+    lab.htmlFor = id;
+    lab.textContent = s.l;
+    const wrap = document.createElement('span');
+    wrap.className = 'rp-num' + (s.u === '฿' ? '' : ' is-short');
+    const num = document.createElement('input');
+    num.type = 'number';
+    num.id = id;
+    num.step = 'any';
+    num.inputMode = 'decimal';
+    const unit = document.createElement('span');
+    unit.textContent = s.u === '%' ? '%' : s.u === 'yrs' ? 'yrs' : s.u === 'trips' ? 'trips' : '';
+    if (s.u === '฿') { const pre = document.createElement('span'); pre.textContent = '฿'; wrap.append(pre, num); } else wrap.append(num, unit);
+    const rng = document.createElement('input');
+    rng.type = 'range';
+    rng.min = s.min; rng.max = s.max; rng.step = s.step;
+    rng.setAttribute('aria-label', s.l);
+    rng.style.accentColor = dash.colors[0];
+    const clamp = (v) => Math.min(Number(rng.max), Math.max(Number(rng.min), v));
+    num.addEventListener('change', () => {
+      const v = Number(num.value);
+      if (num.value !== '' && isFinite(v)) dash.setParams({ [s.k]: clamp(s.u === '%' ? v / 100 : v) });
+      else sync();
+    });
+    num.addEventListener('blur', sync);
+    rng.addEventListener('input', () => dash.setParams({ [s.k]: Number(rng.value) }));
+    row.append(lab, wrap, rng);
+    box.append(row);
+    ctrls[s.k] = { s, num, rng };
+    if (s.k === 'travel') {
+      const lbl = document.createElement('label');
+      lbl.className = 'rp-check';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'rp-taper';
+      const tx = document.createElement('span');
+      tx.textContent = 'Travel less as I age: full budget until 70, half from 70 to 80, a fifth after 80';
+      lbl.append(cb, tx);
+      box.append(lbl);
+      cb.addEventListener('change', () => dash.setParams({ taper: cb.checked }));
+    }
+  });
+
+  const expenseHead = document.createElement('div');
+  expenseHead.className = 'rp-extra-head';
+  const expenseTitle = document.createElement('strong');
+  expenseTitle.textContent = 'Other monthly items';
+  const addExpense = document.createElement('button');
+  addExpense.type = 'button';
+  addExpense.className = 'rp-btn';
+  addExpense.textContent = '+ Add item';
+  expenseHead.append(expenseTitle, addExpense);
+  const expenseNote = document.createElement('p');
+  expenseNote.className = 'rp-note';
+  expenseNote.textContent = 'Add recurring costs not listed above, in today’s baht per month.';
+  const expenseList = document.createElement('div');
+  expenseList.className = 'rp-expense-list';
+  spendingBox.append(expenseHead, expenseNote, expenseList);
+  let nextExpenseId = 1;
+
+  function expenseId() {
+    return 'expense-' + Date.now() + '-' + nextExpenseId++;
+  }
+
+  function renderExpenseItems(items) {
+    const list = Array.isArray(items) ? items : [];
+    const activeIds = new Set(list.map((item) => item.id));
+    Array.from(expenseList.children).forEach((row) => {
+      if (!activeIds.has(row.dataset.id)) row.remove();
+    });
+    list.forEach((item, index) => {
+      let row = Array.from(expenseList.children).find((child) => child.dataset.id === item.id);
+      if (!row) {
+        row = document.createElement('div');
+        row.className = 'rp-expense-row';
+        row.dataset.id = item.id;
+        const name = document.createElement('input');
+        name.type = 'text';
+        name.maxLength = 60;
+        name.placeholder = 'Expense name';
+        name.setAttribute('aria-label', 'Expense item name');
+        const amountWrap = document.createElement('span');
+        amountWrap.className = 'rp-num';
+        const currency = document.createElement('span');
+        currency.textContent = '฿';
+        const amount = document.createElement('input');
+        amount.type = 'number';
+        amount.min = '0';
+        amount.step = 'any';
+        amount.inputMode = 'decimal';
+        amount.setAttribute('aria-label', 'Monthly expense amount');
+        amountWrap.append(currency, amount);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'rp-btn rp-expense-remove';
+        remove.textContent = 'Remove';
+        name.addEventListener('change', () => updateExpense(item.id, { name: name.value }));
+        amount.addEventListener('change', () => updateExpense(item.id, { monthly: Math.max(0, Number(amount.value) || 0) }));
+        remove.addEventListener('click', () => {
+          const p = dash.params();
+          dash.setParams({ extraExpenses: (p.extraExpenses || []).filter((expense) => expense.id !== item.id) });
+        });
+        row.append(name, amountWrap, remove);
+      }
+      const name = row.querySelector('input[type=text]');
+      const amount = row.querySelector('input[type=number]');
+      if (document.activeElement !== name) name.value = item.name || '';
+      if (document.activeElement !== amount) amount.value = item.monthly == null ? 0 : item.monthly;
+      row.querySelector('button').setAttribute('aria-label', 'Remove ' + (item.name || 'unnamed') + ' expense');
+      expenseList.append(row);
+    });
+  }
+
+  function updateExpense(id, changes) {
+    const p = dash.params();
+    dash.setParams({ extraExpenses: (p.extraExpenses || []).map((item) => item.id === id ? { ...item, ...changes } : item) });
+  }
+
+  addExpense.addEventListener('click', () => {
+    const p = dash.params();
+    dash.setParams({ extraExpenses: [...(p.extraExpenses || []), { id: expenseId(), name: '', monthly: 0 }] });
+    expenseList.lastElementChild.querySelector('input[type=text]').focus();
+  });
+
+  function sync() {
+    const p = dash.params();
+    SPEC.forEach((s) => {
+      const c = ctrls[s.k];
+      const v = p[s.k];
+      if (v == null) return;
+      if (document.activeElement !== c.num) c.num.value = s.u === '%' ? +(v * 100).toFixed(2) : v;
+      c.rng.value = v;
+    });
+    renderExpenseItems(p.extraExpenses);
+    root.querySelector('.rp-taper').checked = !!p.taper;
+    root.querySelectorAll('.rp-seg button').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.real === '1') === !!p.real)));
+  }
+
+  root.querySelectorAll('.rp-seg button').forEach((b) => b.addEventListener('click', () => dash.setParams({ real: b.dataset.real === '1' })));
+  root.querySelector('.rp-reset').addEventListener('click', () => dash.resetParams());
+
+  // ---------- model ----------
+  const Y0 = new Date().getFullYear();
+  const ceilingAt = (ceil, year) => { let c = ceil[0].wage_ceiling; for (const r of ceil) if (year >= r.from_year) c = r.wage_ceiling; return c; };
+
+  function model(p, R0, ceil, opt) {
+    const extra = (opt && opt.extra) || 0;
+    const k = opt && opt.scale != null ? opt.scale : 1;
+    const a0 = Math.round(p.age);
+    const R = Math.max(Math.round(p.retireAge), a0 + 1);
+    const N = Math.max(Math.round(p.planTo), R + 1);
+    const g = p.salaryGrowth, inf = p.inflation, r = p.postReturn;
+    const defl = (a) => Math.pow(1 + inf, a - a0);
+    const sal = (a) => p.salary * Math.pow(1 + g, a - a0);
+
+    const months = Math.round(p.ssoYears) * 12 + (R - a0) * 12;
+    const avgYears = R0.sso_avg_months / 12;
+    let wsum = 0;
+    for (let a = R - avgYears; a < R; a++) wsum += Math.min(sal(a), ceilingAt(ceil, Y0 + a - a0));
+    const avgW = wsum / avgYears;
+    const eligible = months >= R0.sso_min_months;
+    const rate = eligible ? R0.sso_base_rate + R0.sso_extra_rate * Math.floor((months - R0.sso_min_months) / 12) : 0;
+    const pension = avgW * rate;
+    const pStart = Math.max(R, R0.sso_pension_age);
+
+    let pvd = p.pvdBalance, oth = p.otherBalance;
+    const rows = [];
+    for (let a = a0; a < R; a++) {
+      const t = a - a0;
+      rows.push({ age: a, pvd, oth, total: pvd + oth });
+      const c = sal(a) * 12 * (p.pvdEmp + p.pvdEr);
+      pvd = pvd * (1 + p.pvdReturn) + c * (1 + p.pvdReturn / 2);
+      const oc = (p.otherMonthly + extra) * 12 * Math.pow(1 + g, t);
+      oth = oth * (1 + p.otherReturn) + oc * (1 + p.otherReturn / 2);
+    }
+    const pvdAtRet = pvd, othAtRet = oth, potAtRet = pvd + oth;
+    let pot = potAtRet, depleted = null;
+    const ret = [];
+    for (let a = R; a <= N; a++) {
+      rows.push({ age: a, pvd: a === R ? pvdAtRet : null, oth: a === R ? othAtRet : null, total: pot });
+      if (a === N) break;
+      const d = defl(a);
+      const tap = p.taper ? (a < 70 ? 1 : a < 80 ? 0.5 : 0.2) : 1;
+      const ess = p.essentials * 12 * k * d, gen = p.general * 12 * k * d, learn = p.learning * 12 * k * d;
+      const trv = p.travel * p.travelTrips * tap * k * d;
+      const items = (p.extraExpenses || []).map((item) => ({ id: item.id, name: item.name || 'Other expense', value: (Number(item.monthly) || 0) * 12 * k * d }));
+      const extra = items.reduce((sum, item) => sum + item.value, 0);
+      const inc = eligible && a >= pStart ? pension * 12 : 0;
+      ret.push({ age: a, ess, gen, learn, trv, items, inc });
+      pot = pot * (1 + r) - (ess + gen + learn + trv + extra - inc) * (1 + r / 2);
+      if (pot < 0 && depleted === null) depleted = a;
+    }
+    let need = 0;
+    for (let i = ret.length - 1; i >= 0; i--) { const x = ret[i]; need = (need + (x.ess + x.gen + x.learn + x.trv + x.items.reduce((sum, item) => sum + item.value, 0) - x.inc) * (1 + r / 2)) / (1 + r); }
+    return { a0, R, N, rows, ret, pvdAtRet, othAtRet, potAtRet, end: pot, depleted, need: Math.max(need, 0), eligible, months, pension, pStart, rate, avgW, defl };
+  }
+
+  function solveScale(p, R0, ceil) {
+    let lo = 0, hi = 1;
+    while (model(p, R0, ceil, { scale: hi }).end >= 0 && hi < 64) { lo = hi; hi *= 2; }
+    for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (model(p, R0, ceil, { scale: m }).end >= 0) lo = m; else hi = m; }
+    return lo;
+  }
+  function solveExtra(p, R0, ceil) {
+    let lo = 0, hi = 10000;
+    while (model(p, R0, ceil, { extra: hi }).end < 0 && hi < 1e8) { lo = hi; hi *= 2; }
+    if (model(p, R0, ceil, { extra: hi }).end < 0) return null;
+    for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (model(p, R0, ceil, { extra: m }).end >= 0) hi = m; else lo = m; }
+    return hi;
+  }
+
+  // ---------- helpers ----------
+  const setTile = (id, big, sub, cls) => {
+    const el = document.getElementById(id);
+    const b = el.querySelector('.rp-big');
+    b.textContent = big;
+    b.classList.remove('is-bad', 'is-ok');
+    if (cls) b.classList.add(cls);
+    el.querySelector('.rp-sub').textContent = sub || ' ';
+  };
+  const legend = (el, items) => {
+    el.replaceChildren(...items.map(([name, color, line]) => {
+      const s = document.createElement('span');
+      const i = document.createElement('i');
+      if (line) i.className = 'is-line';
+      i.style.background = color;
+      s.append(i, document.createTextNode(name));
+      return s;
+    }));
+  };
+  const tipRows = (tip, title, rows, x, y, box) => {
+    tip.replaceChildren();
+    const t = document.createElement('div'); t.className = 't'; t.textContent = title; tip.append(t);
+    rows.forEach(([name, color, val]) => {
+      const r = document.createElement('div'); r.className = 'r';
+      const i = document.createElement('i'); i.style.background = color;
+      const n = document.createElement('span'); n.textContent = name;
+      const b = document.createElement('b'); b.textContent = val;
+      r.append(i, n, b); tip.append(r);
+    });
+    tip.hidden = false;
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    let left = x + 12; if (left + w > box.clientWidth) left = x - w - 12; if (left < 0) left = 0;
+    let top = y - h / 2; if (top < 0) top = 0; if (top + h > box.clientHeight) top = box.clientHeight - h;
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  };
+  const failed = (el) => { el.classList.remove('dash-skeleton'); const d = document.createElement('div'); d.className = 'rp-fail'; d.textContent = 'Failed to load'; el.replaceChildren(d); };
+
+  function frame(el, H, yTicksFmt, yScaleDomain) {
+    el.replaceChildren();
+    const W = Math.max(el.clientWidth, 280);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    const y0 = d3.scaleLinear(yScaleDomain, [H - 28, 10]).nice();
+    const ticks = y0.ticks(5);
+    let ml = 0;
+    ticks.forEach((t) => { const tx = svg.append('text').attr('class', 'rp-tick').text(yTicksFmt(t)); ml = Math.max(ml, tx.node().getComputedTextLength()); tx.remove(); });
+    ml = Math.ceil(ml) + 10;
+    const tip = document.createElement('div'); tip.className = 'rp-tip'; tip.hidden = true; el.append(tip);
+    return { svg, W, H, ml, mr: 12, mt: 10, mb: 28, y: y0, ticks, tip };
+  }
+  function axes(f, x, xTicks) {
+    const { svg, W, H, ml, mr, mb, y, ticks } = f;
+    const gy = svg.append('g');
+    ticks.forEach((t) => {
+      gy.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', y(t)).attr('y2', y(t)).attr('stroke', 'var(--cds-chart-grid)').attr('stroke-width', 1);
+      gy.append('text').attr('class', 'rp-tick').attr('x', ml - 8).attr('y', y(t)).attr('dy', '0.32em').attr('text-anchor', 'end').text(fmtC(t));
+    });
+    svg.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', H - mb).attr('y2', H - mb).attr('stroke', 'var(--cds-chart-axis)');
+    xTicks.forEach(([v, label]) => svg.append('text').attr('class', 'rp-tick').attr('x', v).attr('y', H - mb + 18).attr('text-anchor', 'middle').text(label));
+  }
+
+  // ---------- charts ----------
+  function drawBalance(el, m, p) {
+    const real = !!p.real;
+    const v = (val, a) => (real ? val / m.defl(a) : val);
+    const pts = m.rows.map((r) => ({ age: r.age, pvd: r.pvd == null ? null : v(r.pvd, r.age), oth: r.oth == null ? null : v(r.oth, r.age), total: v(Math.max(r.total, 0), r.age) }));
+    const ymax = d3.max(pts, (d) => d.total) || 1;
+    const f = frame(el, 290, fmtC, [0, ymax]);
+    const { svg, W, H, ml, mr, mb, y, tip } = f;
+    const x = d3.scaleLinear([m.a0, m.N], [ml, W - mr]);
+    const step = (W - ml - mr) / (m.N - m.a0) < 14 ? 10 : 5;
+    const xt = d3.range(Math.ceil(m.a0 / step) * step, m.N + 1, step).map((a) => [x(a), String(a)]);
+    axes(f, x, xt);
+    const C = [dash.colors[0], dash.colors[1], dash.colors[2]];
+    const pre = pts.filter((d) => d.age <= m.R);
+    const post = pts.filter((d) => d.age >= m.R);
+    const area = (y0f, y1f) => d3.area().x((d) => x(d.age)).y0(y0f).y1(y1f);
+    svg.append('path').datum(pre).attr('d', area(() => y(0), (d) => y(d.pvd))).attr('fill', C[0]).attr('fill-opacity', 0.22);
+    svg.append('path').datum(pre).attr('d', area((d) => y(d.pvd), (d) => y(d.pvd + d.oth))).attr('fill', C[1]).attr('fill-opacity', 0.22);
+    svg.append('path').datum(post).attr('d', area(() => y(0), (d) => y(d.total))).attr('fill', C[2]).attr('fill-opacity', 0.22);
+    const line = (yf) => d3.line().x((d) => x(d.age)).y(yf);
+    const st = (s, c) => s.attr('fill', 'none').attr('stroke', c).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+    st(svg.append('path').datum(pre).attr('d', line((d) => y(d.pvd))), C[0]);
+    st(svg.append('path').datum(pre).attr('d', line((d) => y(d.pvd + d.oth))), C[1]);
+    st(svg.append('path').datum(post).attr('d', line((d) => y(d.total))), C[2]);
+    const ref = (age, label, anchorEnd) => {
+      svg.append('line').attr('x1', x(age)).attr('x2', x(age)).attr('y1', f.mt).attr('y2', H - mb).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+      svg.append('text').attr('class', 'rp-tick').attr('x', x(age) + (anchorEnd ? -6 : 6)).attr('y', f.mt + 10).attr('text-anchor', anchorEnd ? 'end' : 'start').text(label);
+    };
+    ref(m.R, 'Retire at ' + m.R, x(m.R) > W * 0.7);
+    if (m.eligible && m.pStart > m.R) ref(m.pStart, 'SSO pension', x(m.pStart) > W * 0.7);
+    if (m.depleted != null) {
+      svg.append('circle').attr('cx', x(m.depleted)).attr('cy', y(0)).attr('r', 5).attr('fill', 'var(--cds-chart-status-critical)');
+      svg.append('text').attr('class', 'rp-tick').attr('x', x(m.depleted)).attr('y', y(0) - 10).attr('text-anchor', x(m.depleted) > W * 0.8 ? 'end' : 'middle').style('fill', 'var(--color-bad)').text('Runs out at ' + m.depleted);
+    }
+    const rule = svg.append('line').attr('y1', f.mt).attr('y2', H - mb).attr('stroke', 'var(--cds-chart-axis)').attr('opacity', 0);
+    const dot = svg.append('circle').attr('r', 4).attr('opacity', 0);
+    svg.append('rect').attr('x', ml).attr('y', 0).attr('width', W - ml - mr).attr('height', H - mb).attr('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [mx] = d3.pointer(ev);
+        const age = Math.max(m.a0, Math.min(m.N, Math.round(x.invert(mx))));
+        const d = pts.find((q) => q.age === age);
+        if (!d) return;
+        const scale = el.clientWidth / W;
+        rule.attr('x1', x(age)).attr('x2', x(age)).attr('opacity', 1);
+        const rowsT = age < m.R ? [['Provident fund', C[0], fmtFull(d.pvd)], ['Other investments', C[1], fmtFull(d.oth)], ['Total', C[1], fmtFull(d.total)]] : [['Retirement pot', C[2], fmtFull(d.total)]];
+        dot.attr('cx', x(age)).attr('cy', y(d.total)).attr('fill', age < m.R ? C[1] : C[2]).attr('opacity', 1);
+        tipRows(tip, 'Age ' + age + ' · ' + (Y0 + age - m.a0), rowsT, x(age) * scale, y(d.total) * scale, el);
+      })
+      .on('mouseleave', () => { tip.hidden = true; rule.attr('opacity', 0); dot.attr('opacity', 0); });
+  }
+
+  function drawSpending(el, m, p) {
+    const real = !!p.real;
+    const v = (val, a) => (real ? val / m.defl(a) : val);
+    const expenseItems = p.extraExpenses || [];
+    const itemKeys = expenseItems.map((item, i) => 'extra' + i);
+    const data = m.ret.map((r) => {
+      const row = { age: r.age, ess: v(r.ess, r.age), gen: v(r.gen, r.age), learn: v(r.learn, r.age), trv: v(r.trv, r.age), inc: v(r.inc, r.age) };
+      r.items.forEach((item, i) => { row[itemKeys[i]] = v(item.value, r.age); });
+      return row;
+    });
+    const ymax = d3.max(data, (d) => Math.max(d.ess + d.gen + d.learn + d.trv + itemKeys.reduce((sum, key) => sum + d[key], 0), d.inc)) || 1;
+    const f = frame(el, 290, fmtC, [0, ymax]);
+    const { svg, W, H, ml, mr, mb, y, tip } = f;
+    const x = d3.scaleBand(data.map((d) => d.age), [ml, W - mr]).padding(0.2);
+    const bw = x.bandwidth();
+    const step = bw < 10 ? 10 : 5;
+    const xt = data.filter((d) => d.age % step === 0).map((d) => [x(d.age) + bw / 2, String(d.age)]);
+    axes(f, x, xt);
+    const keys = ['ess', 'gen', 'learn', ...itemKeys, 'trv'];
+    const C = { ess: dash.colors[3], gen: dash.colors[4], learn: dash.colors[6], trv: dash.colors[5], inc: dash.colors[0] };
+    itemKeys.forEach((key, i) => { C[key] = dash.colors[(i + 7) % dash.colors.length]; });
+    const stack = d3.stack().keys(keys)(data);
+    const w = Math.min(bw, 32);
+    stack.forEach((layer) => {
+      svg.append('g').selectAll('rect').data(layer).join('rect')
+        .attr('x', (d) => x(d.data.age) + (bw - w) / 2).attr('width', w)
+        .attr('y', (d) => y(d[1])).attr('height', (d) => Math.max(0, y(d[0]) - y(d[1])))
+        .attr('fill', C[layer.key]);
+    });
+    if (data.some((d) => d.inc > 0)) {
+      svg.append('path').datum(data).attr('d', d3.line().defined((d) => d.inc > 0).x((d) => x(d.age) + bw / 2).y((d) => y(d.inc)))
+        .attr('fill', 'none').attr('stroke', C.inc).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+    }
+    const hl = svg.append('rect').attr('fill', 'var(--color-fg)').attr('opacity', 0);
+    svg.append('rect').attr('x', ml).attr('y', 0).attr('width', W - ml - mr).attr('height', H - mb).attr('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [mx] = d3.pointer(ev);
+        const i = Math.max(0, Math.min(data.length - 1, Math.floor((mx - ml) / x.step())));
+        const d = data[i];
+        const scale = el.clientWidth / W;
+        hl.attr('x', x(d.age) - 2).attr('width', bw + 4).attr('y', f.mt).attr('height', H - mb - f.mt).attr('opacity', 0.06);
+        const total = d.ess + d.gen + d.learn + d.trv + itemKeys.reduce((sum, key) => sum + d[key], 0);
+        tipRows(tip, 'Age ' + d.age + ' · per month', [
+          ['Essentials', C.ess, fmtFull(d.ess / 12)], ['General', C.gen, fmtFull(d.gen / 12)], ['Learning', C.learn, fmtFull(d.learn / 12)],
+          ...expenseItems.map((item, i) => [item.name || 'Other expense', C[itemKeys[i]], fmtFull(d[itemKeys[i]] / 12)]), ['Travel', C.trv, fmtFull(d.trv / 12)],
+          ['SSO pension', C.inc, fmtFull(d.inc / 12)], ['From savings', 'transparent', fmtFull(Math.max(0, total - d.inc) / 12)],
+        ], (x(d.age) + bw / 2) * scale, y(total) * scale, el);
+      })
+      .on('mouseleave', () => { tip.hidden = true; hl.attr('opacity', 0); });
+  }
+
+  // ---------- tables ----------
+  function fillTable(id, rows, cols, key) {
+    const tb = document.querySelector('#' + id + ' tbody');
+    tb.replaceChildren(...rows.map((r) => {
+      const tr = document.createElement('tr');
+      if (key) tr.dataset.key = r[key];
+      cols.forEach((c) => { const td = document.createElement('td'); td.textContent = r[c] == null ? '' : String(r[c]); tr.append(td); });
+      return tr;
+    }));
+  }
+
+  // ---------- main ----------
+  const balEl = root.querySelector('.rp-chart-bal');
+  const spEl = root.querySelector('.rp-chart-sp');
+  const take = root.querySelector('.rp-take');
+
+  dash.onData(() => {
+    sync();
+    const p = dash.params();
+    const rq = dash.data('thai_rules'), cq = dash.data('sso_ceiling');
+    const real = !!p.real;
+    legend(root.querySelector('.rp-leg-bal'), [['Provident fund', dash.colors[0]], ['Other investments', dash.colors[1]], ['Retirement pot', dash.colors[2]]]);
+    legend(root.querySelector('.rp-leg-sp'), [['Essentials', dash.colors[3]], ['General', dash.colors[4]], ['Learning', dash.colors[6]], ...(p.extraExpenses || []).map((item, i) => [item.name || 'Other expense', dash.colors[(i + 7) % dash.colors.length]]), ['Travel', dash.colors[5]], ['SSO pension', dash.colors[0], true]]);
+
+    if (rq.status === 'ok') fillTable('rules-table', rq.data, ['label', 'shown'], 'rule_id');
+    if (cq.status === 'ok') fillTable('ceiling-table', cq.data, ['phase', 'period', 'ceiling_shown', 'contribution_shown'], null);
+
+    if (rq.status !== 'ok' || cq.status !== 'ok') {
+      const bad = rq.status === 'error' || cq.status === 'error' || rq.status === 'connect' || cq.status === 'connect';
+      ['tile-lasts', 'tile-pot', 'tile-need', 'tile-spend', 'tile-sso', 'tile-gap'].forEach((t) => setTile(t, '—', ''));
+      if (bad) { failed(balEl); failed(spEl); take.classList.remove('dash-skeleton'); take.textContent = '—'; }
+      else { balEl.classList.add('dash-skeleton'); spEl.classList.add('dash-skeleton'); }
+      return;
+    }
+    balEl.classList.remove('dash-skeleton'); spEl.classList.remove('dash-skeleton'); take.classList.remove('dash-skeleton');
+
+    const R0 = Object.fromEntries(rq.data.map((r) => [r.rule_id, Number(r.value)]));
+    const ceil = cq.data.map((r) => ({ from_year: Number(r.from_year), wage_ceiling: Number(r.wage_ceiling) })).sort((a, b) => a.from_year - b.from_year);
+    ['pvdEmp', 'pvdEr'].forEach((k) => { ctrls[k].rng.min = R0.pvd_min_rate; ctrls[k].rng.max = R0.pvd_max_rate; ctrls[k].rng.value = p[k]; });
+
+    const m = model(p, R0, ceil);
+    const shownAt = (val, a) => (real ? val / m.defl(a) : val);
+    const unitNote = real ? 'in today’s baht' : 'in future baht';
+    const firstYear = m.ret[0];
+    const planMonthly = shownAt((firstYear.ess + firstYear.gen + firstYear.learn + firstYear.trv + firstYear.items.reduce((sum, item) => sum + item.value, 0)) / 12, m.R);
+    const scale = solveScale(p, R0, ceil);
+    const affordMonthly = planMonthly * scale;
+    const ok = m.end >= 0;
+    const extra = ok ? 0 : solveExtra(p, R0, ceil);
+
+    setTile('tile-lasts', ok ? 'Age ' + m.N + '+' : 'Age ' + m.depleted, ok ? fmtC(shownAt(m.end, m.N)) + ' left at ' + m.N : 'Short by ' + fmtC(shownAt(m.need - m.potAtRet, m.R)) + ' at retirement', ok ? 'is-ok' : 'is-bad');
+    setTile('tile-pot', fmtC(shownAt(m.potAtRet, m.R)), 'Age ' + m.R + ' · PVD ' + fmtC(shownAt(m.pvdAtRet, m.R)) + ', other ' + fmtC(shownAt(m.othAtRet, m.R)));
+    setTile('tile-need', fmtC(shownAt(m.need, m.R)), m.need > 0 ? pctF(m.potAtRet / m.need) + ' funded' : 'Pension covers spending');
+    setTile('tile-spend', fmtFull(planMonthly), 'Per month at ' + m.R + ', ' + unitNote);
+    if (m.eligible) setTile('tile-sso', fmtFull(shownAt(m.pension, m.pStart)), 'Per month from ' + m.pStart + ' · ' + pct1(m.rate) + ' of ' + fmtFull(m.avgW));
+    else setTile('tile-sso', 'Lump sum only', Math.round(m.months / 12) + ' of 15 years needed for a pension');
+    if (ok) setTile('tile-gap', 'On track', 'Could spend up to ' + fmtFull(affordMonthly) + '/mo', 'is-ok');
+    else setTile('tile-gap', extra == null ? 'Spend less' : '+' + fmtFull(extra) + '/mo', (extra == null ? '' : 'more investing, or ') + 'spend ' + fmtFull(affordMonthly) + '/mo');
+
+    take.replaceChildren();
+    const add = (t, bold) => { if (bold) { const b = document.createElement('b'); b.textContent = t; take.append(b); } else take.append(document.createTextNode(t)); };
+    if (ok) {
+      add('At these settings your money lasts past age ' + m.N + ', with '); add(fmtC(shownAt(m.end, m.N)), true); add(' left. You could raise retirement spending to about '); add(fmtFull(affordMonthly) + ' a month', true); add(' (' + unitNote + ') and still make it.');
+    } else {
+      add('At these settings your money runs out at '); add('age ' + m.depleted, true); add('. ');
+      if (extra != null) { add('Investing '); add(fmtFull(extra) + ' more a month', true); add(' now, or '); } else add('Try ');
+      add('spending '); add(fmtFull(affordMonthly) + ' a month', true); add(' instead of ' + fmtFull(planMonthly) + ' (' + unitNote + '), would make it last to ' + m.N + '.');
+    }
+
+    drawBalance(balEl, m, p);
+    drawSpending(spEl, m, p);
+  });
+})();
+</script>
+</body>
+</html>
