@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Retirement Planner</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+window.GA_MEASUREMENT_ID = 'G-4GB4Z1M0SL';
+if (/^G-[A-Z0-9]{10}$/.test(window.GA_MEASUREMENT_ID)) {
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
+  window.gtag('js', new Date());
+  window.gtag('config', window.GA_MEASUREMENT_ID);
+  const gaScript = document.createElement('script');
+  gaScript.async = true;
+  gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(window.GA_MEASUREMENT_ID);
+  document.head.append(gaScript);
+}
+</script>
 <style>
 /* ===== Theme tokens (edit colors, fonts and spacing here) ===== */
 :root {
@@ -93,6 +106,19 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
 .rp-method li { margin-bottom: 4px; }
 .rp-fail { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: inherit; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
 .rp-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+.rp-actions { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); }
+.rp-file-status { min-height: 1.2em; margin: 0 0 var(--cds-gap-sm); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.rp-tabs { display: flex; gap: var(--cds-gap-xs); border-bottom: 1px solid var(--color-border-line); margin: var(--cds-gap-lg) 0; }
+.rp-tabs button { font: inherit; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; padding: var(--cds-pad-sm) var(--cds-pad-md); cursor: pointer; }
+.rp-tabs button[aria-selected=true] { color: var(--color-fg); border-bottom-color: var(--color-ok); font-weight: var(--cds-font-weight-medium); }
+.rp-view[hidden] { display: none; }
+.rp-table-wrap { overflow-x: auto; }
+.rp-invest-table { min-width: 820px; }
+.rp-invest-table select, .rp-invest-table input { box-sizing: border-box; max-width: 100%; font: inherit; font-size: var(--cds-font-size-caption); color: var(--color-fg); background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: 5px 6px; }
+.rp-invest-table input[type=text] { width: 9rem; }
+.rp-invest-table input[type=number] { width: 7.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.rp-invest-table tfoot th, .rp-invest-table tfoot td { border-top: 2px solid var(--color-border-line); border-bottom: 0; color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.rp-invest-total { text-align: right; white-space: nowrap; }
 [data-dash-source-state=empty] { color: transparent; }
 [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
 </style>
@@ -105,6 +131,12 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <p class="rp-take dash-skeleton">—</p>
   </header>
 
+  <nav class="rp-tabs" role="tablist" aria-label="Planner sections">
+    <button type="button" role="tab" class="rp-tab" id="plan-tab" aria-controls="plan-panel" aria-selected="true" tabindex="0">Plan</button>
+    <button type="button" role="tab" class="rp-tab" id="investments-tab" aria-controls="investments-panel" aria-selected="false" tabindex="-1">Investments</button>
+  </nav>
+
+  <section class="rp-view" id="plan-panel" role="tabpanel" aria-labelledby="plan-tab">
   <section class="rp-tiles" id="headline" aria-label="Headline figures">
     <div class="rp-card rp-tile" id="tile-lasts"><div class="rp-lab">Money lasts until</div><div class="rp-big">—</div><div class="rp-sub">&nbsp;</div></div>
     <div class="rp-card rp-tile" id="tile-pot"><div class="rp-lab">Savings at retirement</div><div class="rp-big">—</div><div class="rp-sub">&nbsp;</div></div>
@@ -118,8 +150,14 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
     <aside class="rp-card" id="inputs">
       <div class="rp-bar">
         <h2>Your plan</h2>
-        <button type="button" class="rp-btn rp-reset">Reset</button>
+        <div class="rp-actions">
+          <button type="button" class="rp-btn rp-export">Export</button>
+          <button type="button" class="rp-btn rp-import">Import</button>
+          <button type="button" class="rp-btn rp-reset">Reset</button>
+          <input type="file" class="rp-import-file" accept=".json,application/json" hidden>
+        </div>
       </div>
+      <p class="rp-file-status" role="status" aria-live="polite"></p>
       <div class="rp-inputs" data-source="thai_rules"></div>
     </aside>
 
@@ -132,7 +170,7 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
             <button type="button" data-real="0">Future baht</button>
           </div>
         </div>
-        <p class="rp-note">Provident fund and other investments grow until you retire, then combine into one pot that pays your spending, less your Social Security pension.</p>
+        <p class="rp-note">The provident fund and each investment grow until you retire, then combine into one pot that pays your spending, less your Social Security pension.</p>
         <div class="rp-legend rp-leg-bal"></div>
         <div class="rp-chart rp-chart-bal dash-skeleton" data-source="thai_rules sso_ceiling"></div>
       </section>
@@ -175,6 +213,35 @@ html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); fon
         <li>Tax, PVD vesting rules and fees aren't modeled. Returns are steady averages, not market ups and downs. This is a planning tool, not financial advice.</li>
       </ul>
     </div>
+  </section>
+  </section>
+
+  <section class="rp-view" id="investments-panel" role="tabpanel" aria-labelledby="investments-tab" hidden>
+    <section class="rp-card" id="portfolio">
+      <div class="rp-bar">
+        <div>
+          <h2>Investment portfolio</h2>
+          <p class="rp-note">Projected values are future baht at retirement. The portfolio return is weighted by current balance (or monthly contributions if balances are zero); returns are steady estimates, not guarantees.</p>
+        </div>
+        <button type="button" class="rp-btn rp-add-investment">+ Add investment</button>
+      </div>
+      <div class="rp-table-wrap">
+        <table class="rp-table rp-invest-table">
+          <thead><tr><th>Type</th><th>Name or symbol</th><th>Current balance</th><th>Investing / month</th><th>Return / year</th><th>Projected value at retirement</th><th></th></tr></thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2">Portfolio total</th>
+              <td class="rp-invest-total" data-total="balance">—</td>
+              <td class="rp-invest-total" data-total="monthly">—</td>
+              <td class="rp-invest-total" data-total="return">—</td>
+              <td class="rp-invest-total" data-total="projected">—</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
   </section>
 </div>
 </div>
@@ -291,9 +358,9 @@ window.RP_DEFAULTS = {
   "pvdEr": 0.05,
   "pvdReturn": 0.04,
   "ssoYears": 7,
-  "otherBalance": 200000,
-  "otherMonthly": 5000,
-  "otherReturn": 0.06,
+  "investments": [
+    { "id": "starter-investment", "type": "other", "name": "Other investments", "balance": 200000, "monthly": 5000, "return": 0.06 }
+  ],
   "essentials": 25000,
   "general": 15000,
   "learning": 5000,
@@ -311,7 +378,21 @@ window.RP_DEFAULTS = {
 window.dash = (() => {
   const KEY = 'retirement-planner-params-v2';
   let params = { ...RP_DEFAULTS };
-  try { Object.assign(params, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    Object.assign(params, saved);
+    if (!Array.isArray(saved.investments) && ['otherBalance', 'otherMonthly', 'otherReturn'].some((key) => Object.prototype.hasOwnProperty.call(saved, key))) {
+      params.investments = [{
+        id: 'migrated-other-investment', type: 'other', name: 'Other investments',
+        balance: Number.isFinite(saved.otherBalance) ? saved.otherBalance : 0,
+        monthly: Number.isFinite(saved.otherMonthly) ? saved.otherMonthly : 0,
+        return: Number.isFinite(saved.otherReturn) ? saved.otherReturn : 0.06,
+      }];
+    }
+    delete params.otherBalance;
+    delete params.otherMonthly;
+    delete params.otherReturn;
+  } catch (e) {}
   const subs = [];
   const run = () => subs.forEach((fn) => fn());
   const dark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
@@ -350,9 +431,6 @@ window.dash = (() => {
     { g: 'Salary and provident fund', k: 'pvdEr', l: 'Employer PVD contribution', min: 0, max: 0.3, step: 0.01, u: '%', rule: true },
     { g: 'Salary and provident fund', k: 'pvdReturn', l: 'PVD return per year', min: 0, max: 0.1, step: 0.005, u: '%' },
     { g: 'Social Security', k: 'ssoYears', l: 'Years paid in so far', min: 0, max: 40, step: 1, u: 'yrs' },
-    { g: 'Other savings and investments', k: 'otherBalance', l: 'Balance today (RMF, ThaiESG, stocks, deposits…)', min: 0, max: 50000000, step: 10000, u: '฿' },
-    { g: 'Other savings and investments', k: 'otherMonthly', l: 'Investing per month', min: 0, max: 300000, step: 500, u: '฿' },
-    { g: 'Other savings and investments', k: 'otherReturn', l: 'Return per year', min: 0, max: 0.12, step: 0.005, u: '%' },
     { g: 'Retirement spending, in today’s baht', k: 'essentials', l: 'Essentials per month (home, food, health)', min: 0, max: 300000, step: 1000, u: '฿' },
     { g: 'Retirement spending, in today’s baht', k: 'general', l: 'General spending per month', min: 0, max: 300000, step: 1000, u: '฿' },
     { g: 'Retirement spending, in today’s baht', k: 'learning', l: 'Learning per month', min: 0, max: 300000, step: 1000, u: '฿' },
@@ -442,6 +520,9 @@ window.dash = (() => {
   function expenseId() {
     return 'expense-' + Date.now() + '-' + nextExpenseId++;
   }
+  function investmentId() {
+    return 'investment-' + Date.now() + '-' + nextExpenseId++;
+  }
 
   function renderExpenseItems(items) {
     const list = Array.isArray(items) ? items : [];
@@ -520,6 +601,111 @@ window.dash = (() => {
   root.querySelectorAll('.rp-seg button').forEach((b) => b.addEventListener('click', () => dash.setParams({ real: b.dataset.real === '1' })));
   root.querySelector('.rp-reset').addEventListener('click', () => dash.resetParams());
 
+  const tabs = Array.from(root.querySelectorAll('.rp-tab'));
+  function activateTab(selected) {
+    tabs.forEach((tab) => {
+      const active = tab === selected;
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+      root.querySelector('#' + tab.getAttribute('aria-controls')).hidden = !active;
+    });
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activateTab(tab));
+    tab.addEventListener('keydown', (event) => {
+      let next = index;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      tabs[next].focus();
+      activateTab(tabs[next]);
+    });
+  });
+
+  const exportButton = root.querySelector('.rp-export');
+  const importButton = root.querySelector('.rp-import');
+  const importFile = root.querySelector('.rp-import-file');
+  const fileStatus = root.querySelector('.rp-file-status');
+  exportButton.addEventListener('click', () => {
+    const snapshot = { format: 'retirement-planner-settings', version: 2, savedAt: new Date().toISOString(), params: dash.params() };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'retirement-planner-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    fileStatus.textContent = 'Plan snapshot downloaded.';
+  });
+  importButton.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', async () => {
+    const file = importFile.files[0];
+    if (!file) return;
+    try {
+      if (file.size > 1000000) throw new Error('File is too large.');
+      const snapshot = JSON.parse(await file.text());
+      if (snapshot.format !== 'retirement-planner-settings' || ![1, 2].includes(snapshot.version) || !snapshot.params || typeof snapshot.params !== 'object' || Array.isArray(snapshot.params)) {
+        throw new Error('This is not a supported planner snapshot.');
+      }
+      const values = { ...snapshot.params };
+      if (snapshot.version === 1 && !Array.isArray(values.investments)) {
+        values.investments = [{
+          type: 'other', name: 'Other investments', balance: values.otherBalance,
+          monthly: values.otherMonthly, return: values.otherReturn,
+        }];
+      }
+      delete values.otherBalance;
+      delete values.otherMonthly;
+      delete values.otherReturn;
+      const keys = Object.keys(RP_DEFAULTS);
+      if (keys.some((key) => !Object.prototype.hasOwnProperty.call(values, key)) || Object.keys(values).some((key) => !keys.includes(key))) {
+        throw new Error('The snapshot is missing or contains unsupported settings.');
+      }
+      const imported = {};
+      keys.forEach((key) => {
+        const value = values[key];
+        if (key === 'extraExpenses') {
+          if (!Array.isArray(value) || value.length > 100) throw new Error('The snapshot has an invalid expense list.');
+          imported[key] = value.map((item) => {
+            if (!item || typeof item.name !== 'string' || item.name.length > 60 || !Number.isFinite(item.monthly) || item.monthly < 0 || item.monthly > 100000000) {
+              throw new Error('The snapshot contains an invalid expense item.');
+            }
+            return { id: expenseId(), name: item.name, monthly: item.monthly };
+          });
+        } else if (key === 'investments') {
+          if (!Array.isArray(value) || value.length > 100) throw new Error('The snapshot has an invalid investment list.');
+          imported[key] = value.map((item) => {
+            if (!item || !['index', 'stock', 'other'].includes(item.type) || typeof item.name !== 'string' || item.name.length > 60 ||
+                !Number.isFinite(item.balance) || item.balance < 0 || item.balance > 100000000 ||
+                !Number.isFinite(item.monthly) || item.monthly < 0 || item.monthly > 10000000 ||
+                !Number.isFinite(item.return) || item.return < -0.5 || item.return > 1) {
+              throw new Error('The snapshot contains an invalid investment.');
+            }
+            return { id: investmentId(), type: item.type, name: item.name, balance: item.balance, monthly: item.monthly, return: item.return };
+          });
+        } else if (key === 'taper' || key === 'real') {
+          if (typeof value !== 'boolean') throw new Error('The snapshot contains an invalid setting.');
+          imported[key] = value;
+        } else {
+          const spec = SPEC.find((item) => item.k === key);
+          if (!spec || !Number.isFinite(value) || value < spec.min || value > spec.max) throw new Error('The snapshot contains an invalid number for ' + key + '.');
+          imported[key] = value;
+        }
+      });
+      dash.setParams(imported);
+      fileStatus.textContent = 'Plan imported and saved in this browser.';
+    } catch (error) {
+      fileStatus.textContent = 'Could not import snapshot: ' + error.message;
+    } finally {
+      importFile.value = '';
+    }
+  });
+
   // ---------- model ----------
   const Y0 = new Date().getFullYear();
   const ceilingAt = (ceil, year) => { let c = ceil[0].wage_ceiling; for (const r of ceil) if (year >= r.from_year) c = r.wage_ceiling; return c; };
@@ -544,17 +730,36 @@ window.dash = (() => {
     const pension = avgW * rate;
     const pStart = Math.max(R, R0.sso_pension_age);
 
-    let pvd = p.pvdBalance, oth = p.otherBalance;
+    let pvd = p.pvdBalance;
+    const holdings = (p.investments || []).map((item) => ({
+      ...item,
+      currentBalance: Number(item.balance) || 0,
+      balance: Number(item.balance) || 0,
+      monthly: Number(item.monthly) || 0,
+      return: Number(item.return) || 0,
+    }));
+    if (extra > 0 && holdings.length === 0) holdings.push({ id: 'additional-investment', type: 'other', name: 'Additional investment', currentBalance: 0, balance: 0, monthly: 0, return: 0.06 });
+    const monthlyTotal = holdings.reduce((sum, item) => sum + item.monthly, 0);
+    const extraShares = holdings.map((item) => monthlyTotal > 0 ? item.monthly / monthlyTotal : 1 / holdings.length);
     const rows = [];
     for (let a = a0; a < R; a++) {
       const t = a - a0;
+      const oth = holdings.reduce((sum, item) => sum + item.balance, 0);
       rows.push({ age: a, pvd, oth, total: pvd + oth });
       const c = sal(a) * 12 * (p.pvdEmp + p.pvdEr);
       pvd = pvd * (1 + p.pvdReturn) + c * (1 + p.pvdReturn / 2);
-      const oc = (p.otherMonthly + extra) * 12 * Math.pow(1 + g, t);
-      oth = oth * (1 + p.otherReturn) + oc * (1 + p.otherReturn / 2);
+      holdings.forEach((item, i) => {
+        const contribution = (item.monthly + extra * extraShares[i]) * 12 * Math.pow(1 + g, t);
+        item.balance = item.balance * (1 + item.return) + contribution * (1 + item.return / 2);
+      });
     }
-    const pvdAtRet = pvd, othAtRet = oth, potAtRet = pvd + oth;
+    const pvdAtRet = pvd;
+    const investmentsAtRetirement = holdings.map((item) => ({
+      id: item.id, type: item.type, name: item.name, balance: item.currentBalance,
+      monthly: item.monthly, return: item.return, projected: item.balance,
+    }));
+    const othAtRet = investmentsAtRetirement.reduce((sum, item) => sum + item.projected, 0);
+    const potAtRet = pvd + othAtRet;
     let pot = potAtRet, depleted = null;
     const ret = [];
     for (let a = R; a <= N; a++) {
@@ -573,7 +778,7 @@ window.dash = (() => {
     }
     let need = 0;
     for (let i = ret.length - 1; i >= 0; i--) { const x = ret[i]; need = (need + (x.ess + x.gen + x.learn + x.trv + x.items.reduce((sum, item) => sum + item.value, 0) - x.inc) * (1 + r / 2)) / (1 + r); }
-    return { a0, R, N, rows, ret, pvdAtRet, othAtRet, potAtRet, end: pot, depleted, need: Math.max(need, 0), eligible, months, pension, pStart, rate, avgW, defl };
+    return { a0, R, N, rows, ret, pvdAtRet, othAtRet, investmentsAtRetirement, potAtRet, end: pot, depleted, need: Math.max(need, 0), eligible, months, pension, pStart, rate, avgW, defl };
   }
 
   function solveScale(p, R0, ceil) {
@@ -694,7 +899,7 @@ window.dash = (() => {
         if (!d) return;
         const scale = el.clientWidth / W;
         rule.attr('x1', x(age)).attr('x2', x(age)).attr('opacity', 1);
-        const rowsT = age < m.R ? [['Provident fund', C[0], fmtFull(d.pvd)], ['Other investments', C[1], fmtFull(d.oth)], ['Total', C[1], fmtFull(d.total)]] : [['Retirement pot', C[2], fmtFull(d.total)]];
+        const rowsT = age < m.R ? [['Provident fund', C[0], fmtFull(d.pvd)], ['Investments', C[1], fmtFull(d.oth)], ['Total', C[1], fmtFull(d.total)]] : [['Retirement pot', C[2], fmtFull(d.total)]];
         dot.attr('cx', x(age)).attr('cy', y(d.total)).attr('fill', age < m.R ? C[1] : C[2]).attr('opacity', 1);
         tipRows(tip, 'Age ' + age + ' · ' + (Y0 + age - m.a0), rowsT, x(age) * scale, y(d.total) * scale, el);
       })
@@ -763,6 +968,94 @@ window.dash = (() => {
     }));
   }
 
+  const investmentBody = root.querySelector('.rp-invest-table tbody');
+  function updateInvestment(id, changes) {
+    const p = dash.params();
+    dash.setParams({ investments: (p.investments || []).map((item) => item.id === id ? { ...item, ...changes } : item) });
+  }
+  function renderInvestments(p, m) {
+    const items = Array.isArray(p.investments) ? p.investments : [];
+    const projections = new Map(m.investmentsAtRetirement.map((item) => [item.id, item.projected]));
+    investmentBody.replaceChildren(...items.map((item) => {
+      const row = document.createElement('tr');
+      const typeCell = document.createElement('td');
+      const type = document.createElement('select');
+      type.setAttribute('aria-label', 'Investment type');
+      [['index', 'Index'], ['stock', 'Stock'], ['other', 'Other']].forEach(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        type.append(option);
+      });
+      type.value = item.type;
+      type.addEventListener('change', () => updateInvestment(item.id, { type: type.value }));
+      typeCell.append(type);
+
+      const nameCell = document.createElement('td');
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.maxLength = 60;
+      name.placeholder = 'Fund, company, etc.';
+      name.value = item.name || '';
+      name.setAttribute('aria-label', 'Investment name or symbol');
+      name.addEventListener('change', () => updateInvestment(item.id, { name: name.value.trim() }));
+      nameCell.append(name);
+
+      const balanceCell = document.createElement('td');
+      const balance = document.createElement('input');
+      balance.type = 'number'; balance.min = '0'; balance.max = '100000000'; balance.step = 'any';
+      balance.value = item.balance; balance.setAttribute('aria-label', 'Current balance');
+      balance.addEventListener('change', () => updateInvestment(item.id, { balance: Math.max(0, Math.min(100000000, Number(balance.value) || 0)) }));
+      balanceCell.append(balance);
+
+      const monthlyCell = document.createElement('td');
+      const monthly = document.createElement('input');
+      monthly.type = 'number'; monthly.min = '0'; monthly.max = '10000000'; monthly.step = 'any';
+      monthly.value = item.monthly; monthly.setAttribute('aria-label', 'Monthly contribution');
+      monthly.addEventListener('change', () => updateInvestment(item.id, { monthly: Math.max(0, Math.min(10000000, Number(monthly.value) || 0)) }));
+      monthlyCell.append(monthly);
+
+      const returnCell = document.createElement('td');
+      const annualReturn = document.createElement('input');
+      annualReturn.type = 'number'; annualReturn.min = '-50'; annualReturn.max = '100'; annualReturn.step = 'any';
+      annualReturn.value = +(item.return * 100).toFixed(2); annualReturn.setAttribute('aria-label', 'Projected annual return percent');
+      annualReturn.addEventListener('change', () => updateInvestment(item.id, { return: Math.max(-0.5, Math.min(1, (Number(annualReturn.value) || 0) / 100)) }));
+      returnCell.append(annualReturn, document.createTextNode('%'));
+
+      const projectedCell = document.createElement('td');
+      projectedCell.className = 'rp-invest-total';
+      projectedCell.textContent = fmtFull(projections.get(item.id) || 0);
+      const removeCell = document.createElement('td');
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.className = 'rp-btn'; remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', 'Remove ' + (item.name || 'unnamed') + ' investment');
+      remove.addEventListener('click', () => {
+        const current = dash.params();
+        dash.setParams({ investments: (current.investments || []).filter((entry) => entry.id !== item.id) });
+      });
+      removeCell.append(remove);
+      row.append(typeCell, nameCell, balanceCell, monthlyCell, returnCell, projectedCell, removeCell);
+      return row;
+    }));
+    const totalBalance = items.reduce((sum, item) => sum + item.balance, 0);
+    const totalMonthly = items.reduce((sum, item) => sum + item.monthly, 0);
+    const returnWeight = totalBalance || totalMonthly;
+    const weightedReturn = returnWeight ? items.reduce((sum, item) => sum + (totalBalance ? item.balance : item.monthly) * item.return, 0) / returnWeight : 0;
+    root.querySelector('[data-total="balance"]').textContent = fmtFull(totalBalance);
+    root.querySelector('[data-total="monthly"]').textContent = fmtFull(totalMonthly) + '/mo';
+    root.querySelector('[data-total="return"]').textContent = pct1(weightedReturn) + ' weighted';
+    root.querySelector('[data-total="projected"]').textContent = fmtFull(m.investmentsAtRetirement.reduce((sum, item) => sum + item.projected, 0));
+  }
+
+  const addInvestment = root.querySelector('.rp-add-investment');
+  addInvestment.addEventListener('click', () => {
+    const p = dash.params();
+    const investments = p.investments || [];
+    if (investments.length >= 100) return;
+    dash.setParams({ investments: [...investments, { id: investmentId(), type: 'other', name: '', balance: 0, monthly: 0, return: 0.06 }] });
+    investmentBody.lastElementChild.querySelector('[aria-label="Investment name or symbol"]').focus();
+  });
+
   // ---------- main ----------
   const balEl = root.querySelector('.rp-chart-bal');
   const spEl = root.querySelector('.rp-chart-sp');
@@ -773,7 +1066,7 @@ window.dash = (() => {
     const p = dash.params();
     const rq = dash.data('thai_rules'), cq = dash.data('sso_ceiling');
     const real = !!p.real;
-    legend(root.querySelector('.rp-leg-bal'), [['Provident fund', dash.colors[0]], ['Other investments', dash.colors[1]], ['Retirement pot', dash.colors[2]]]);
+    legend(root.querySelector('.rp-leg-bal'), [['Provident fund', dash.colors[0]], ['Investments', dash.colors[1]], ['Retirement pot', dash.colors[2]]]);
     legend(root.querySelector('.rp-leg-sp'), [['Essentials', dash.colors[3]], ['General', dash.colors[4]], ['Learning', dash.colors[6]], ...(p.extraExpenses || []).map((item, i) => [item.name || 'Other expense', dash.colors[(i + 7) % dash.colors.length]]), ['Travel', dash.colors[5]], ['SSO pension', dash.colors[0], true]]);
 
     if (rq.status === 'ok') fillTable('rules-table', rq.data, ['label', 'shown'], 'rule_id');
@@ -793,6 +1086,7 @@ window.dash = (() => {
     ['pvdEmp', 'pvdEr'].forEach((k) => { ctrls[k].rng.min = R0.pvd_min_rate; ctrls[k].rng.max = R0.pvd_max_rate; ctrls[k].rng.value = p[k]; });
 
     const m = model(p, R0, ceil);
+    renderInvestments(p, m);
     const shownAt = (val, a) => (real ? val / m.defl(a) : val);
     const unitNote = real ? 'in today’s baht' : 'in future baht';
     const firstYear = m.ret[0];
@@ -803,7 +1097,7 @@ window.dash = (() => {
     const extra = ok ? 0 : solveExtra(p, R0, ceil);
 
     setTile('tile-lasts', ok ? 'Age ' + m.N + '+' : 'Age ' + m.depleted, ok ? fmtC(shownAt(m.end, m.N)) + ' left at ' + m.N : 'Short by ' + fmtC(shownAt(m.need - m.potAtRet, m.R)) + ' at retirement', ok ? 'is-ok' : 'is-bad');
-    setTile('tile-pot', fmtC(shownAt(m.potAtRet, m.R)), 'Age ' + m.R + ' · PVD ' + fmtC(shownAt(m.pvdAtRet, m.R)) + ', other ' + fmtC(shownAt(m.othAtRet, m.R)));
+    setTile('tile-pot', fmtC(shownAt(m.potAtRet, m.R)), 'Age ' + m.R + ' · PVD ' + fmtC(shownAt(m.pvdAtRet, m.R)) + ', investments ' + fmtC(shownAt(m.othAtRet, m.R)));
     setTile('tile-need', fmtC(shownAt(m.need, m.R)), m.need > 0 ? pctF(m.potAtRet / m.need) + ' funded' : 'Pension covers spending');
     setTile('tile-spend', fmtFull(planMonthly), 'Per month at ' + m.R + ', ' + unitNote);
     if (m.eligible) setTile('tile-sso', fmtFull(shownAt(m.pension, m.pStart)), 'Per month from ' + m.pStart + ' · ' + pct1(m.rate) + ' of ' + fmtFull(m.avgW));
